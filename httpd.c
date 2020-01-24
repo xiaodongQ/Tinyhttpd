@@ -54,6 +54,7 @@ void unimplemented(int);
 /**********************************************************************/
 void accept_request(void *arg)
 {
+    // 立即保存由指针传入的句柄
     int client = (intptr_t)arg;
     char buf[1024];
     size_t numchars;
@@ -68,6 +69,7 @@ void accept_request(void *arg)
 
     numchars = get_line(client, buf, sizeof(buf));
     i = 0; j = 0;
+    // buf定义的总长度为1024，字符串实际长度之后都是空格
     while (!ISspace(buf[i]) && (i < sizeof(method) - 1))
     {
         method[i] = buf[i];
@@ -299,8 +301,8 @@ void execute_cgi(int client, const char *path,
 }
 
 /**********************************************************************/
-/* Get a line from a socket, whether the line ends in a newline,
- * carriage return, or a CRLF combination.  Terminates the string read
+/* Get a line from a socket, whether the line ends in a newline(\n),
+ * carriage return(\r), or a CRLF(\r\n) combination.  Terminates the string read
  * with a null character.  If no newline indicator is found before the
  * end of the buffer, the string is terminated with a null.  If any of
  * the above three line terminators is read, the last character of the
@@ -308,9 +310,10 @@ void execute_cgi(int client, const char *path,
  * null character.
  * Parameters: the socket descriptor
  *             the buffer to save the data in
- *             the size of the buffer
+ *             the size of the buffer 传入的size参数是buf的总长度
  * Returns: the number of bytes stored (excluding null) */
 /**********************************************************************/
+// read获取一行，可以以\n、\r、\r\n结束，读取一个空字符(\0)来终止字符串。
 int get_line(int sock, char *buf, int size)
 {
     int i = 0;
@@ -323,12 +326,20 @@ int get_line(int sock, char *buf, int size)
         /* DEBUG printf("%02X\n", c); */
         if (n > 0)
         {
+            // http报文结束时为 \r\n
+            // 情况1. 若读取到的字符为\n，不走该分支，i++后下一个循环会退出while
+            // 情况2. 若读取到的字符不为\r 也不为\n，(普通字符)不走该分支，给buf[i]赋值后i++，进入下一个循环
+            // 情况3. 若读取到的字符为\r，走该分支；
+                // 再读取一字符：
+                // a.若为\n，则再读取一字符，给buf[i]赋值再i++后，进入下一循环
+                // b.若不为\n则赋值为\n，赋值再i++后下一循环会退出while
             if (c == '\r')
             {
+                // 按1个字节读取
                 n = recv(sock, &c, 1, MSG_PEEK);
                 /* DEBUG printf("%02X\n", c); */
                 if ((n > 0) && (c == '\n'))
-                    recv(sock, &c, 1, 0);
+                    recv(sock, &c, 1, 0); // 接收到\r\n后，又接收一个字节？
                 else
                     c = '\n';
             }
@@ -336,8 +347,9 @@ int get_line(int sock, char *buf, int size)
             i++;
         }
         else
-            c = '\n';
+            c = '\n';  // 读取结束或出错则赋值'\n'退出循环
     }
+    // 退出循环后最后一个是'\n'，将其替换为'\0'
     buf[i] = '\0';
 
     return(i);
@@ -505,6 +517,8 @@ int main(void)
                 &client_name_len);
         if (client_sock == -1)
             error_die("accept");
+        printf("get request[%s, %d]...\n", inet_ntoa(client_name.sin_addr), ntohs(client_name.sin_port));
+        // 获取到一个请求创建一线程
         /* accept_request(&client_sock); */
         if (pthread_create(&newthread , NULL, (void *)accept_request, (void *)(intptr_t)client_sock) != 0)
             perror("pthread_create");
