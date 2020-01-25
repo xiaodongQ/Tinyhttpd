@@ -80,6 +80,7 @@ void accept_request(void *arg)
 
     if (strcasecmp(method, "GET") && strcasecmp(method, "POST"))
     {
+        // 发送http应答报文，提示方法未实现
         unimplemented(client);
         return;
     }
@@ -104,6 +105,7 @@ void accept_request(void *arg)
             query_string++;
         if (*query_string == '?')
         {
+            // 找到http GET中的，?xxx
             cgi = 1;
             *query_string = '\0';
             query_string++;
@@ -349,7 +351,7 @@ int get_line(int sock, char *buf, int size)
         else
             c = '\n';  // 读取结束或出错则赋值'\n'退出循环
     }
-    // 退出循环后最后一个是'\n'，将其替换为'\0'
+    // 退出循环后最后一个是'\n'，将其替换为'\0' (由于之前i++了，所以此时i是之前读取的后一个成员)
     buf[i] = '\0';
 
     return(i);
